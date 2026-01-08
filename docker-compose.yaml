@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: app_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+    profiles: ["dev"]
+
+  app:
+    build: .
+    container_name: app_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy 
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    volumes:
+      - ./src:/app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+    profiles: ["production"]
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
